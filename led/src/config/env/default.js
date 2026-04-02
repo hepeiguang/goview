@@ -8,7 +8,7 @@ const APP_ROOT = process.cwd()
 const APP_NAME = 'LED'
 
 // 支持环境变量切换数据库类型: mysql | sqlite | mssql
-const DB_TYPE = process.env.DB_TYPE || 'mysql'
+const DB_TYPE = process.env.DB_TYPE || 'sqlite'
 
 // 根据 DB_TYPE 生成数据库配置
 const getDbConfig = () => {

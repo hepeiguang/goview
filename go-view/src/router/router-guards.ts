@@ -1,6 +1,9 @@
 import { Router } from 'vue-router';
 import { PageEnum, PreviewEnum } from '@/enums/pageEnum'
 import { loginCheck } from '@/utils'
+import { useTokenStore } from '@/store/modules/tokenStore/tokenStore'
+import { validateTokenApi } from '@/api/token'
+import { extractAndStoreUrlParams } from '@/utils/urlParams'
 
 // 路由白名单
 const routerAllowList = [
@@ -13,6 +16,29 @@ const routerAllowList = [
 export function createRouterGuards(router: Router) {
   // 前置
   router.beforeEach(async (to, from, next) => {
+    // 1. 提取并存储所有 URL 参数到 sessionStorage
+    extractAndStoreUrlParams()
+
+    // 2. 提取 URL 参数中的 token 并验证
+    const tokenStore = useTokenStore()
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlToken = urlParams.get('token')
+
+    if (urlToken) {
+      // 保存 URL token
+      tokenStore.setUrlToken(urlToken)
+
+      // 如果还没验证过，进行验证
+      if (!tokenStore.isValidated) {
+        try {
+          await tokenStore.validateToken(validateTokenApi)
+        } catch (error) {
+          console.error('[Router Guards] Token validation failed:', error)
+        }
+      }
+    }
+
+    // 3. 处理外部动态参数
     // http://localhost:3000/#/chart/preview/792622755697790976?t=123
     // 把外部动态参数放入window.route.params，后续API动态接口可以用window.route?.params?.t来拼接参数
     // @ts-ignore
@@ -27,6 +53,7 @@ export function createRouterGuards(router: Router) {
       next({ name: PageEnum.ERROR_PAGE_NAME_404 })
     }
 
+    // 4. 检查登录状态（白名单页面跳过）
     // @ts-ignore
     if (!routerAllowList.includes(to.name) && !loginCheck()) {
       next({ name: PageEnum.BASE_LOGIN_NAME })

@@ -2,12 +2,14 @@ import axiosInstance from './axios'
 import {
   RequestHttpEnum,
   ContentTypeEnum,
-  RequestBodyEnum,//cscscs
+  RequestBodyEnum,
   RequestDataTypeEnum,
   RequestContentTypeEnum,
   RequestParamsObjType
 } from '@/enums/httpEnum'
 import type { RequestGlobalConfigType, RequestConfigType } from '@/store/modules/chartEditStore/chartEditStore.d'
+import { useTokenStore } from '@/store/modules/tokenStore/tokenStore'
+import { replaceUrlParams } from '@/utils/urlParams'
 
 export const get = <T = any>(url: string, params?: object) => {
   return axiosInstance<T>({
@@ -149,11 +151,20 @@ export const customizeHttp = (targetParams: RequestConfigType, globalParams: Req
     return
   }
 
+  // 调试日志
+  console.log('[customizeHttp] Request URL:', requestUrl)
+  console.log('[customizeHttp] Request Params:', targetRequestParams.Params)
+
+  // 获取 Token Store 中的 Authorization
+  const tokenStore = useTokenStore()
+  const authorization = tokenStore.getAuthorization
+
   // 处理头部
   let headers: RequestParamsObjType = {
     ...globalRequestParams.Header,
     ...targetRequestParams.Header
   }
+
   headers = translateStr(headers)
 
   // data 参数
@@ -161,6 +172,11 @@ export const customizeHttp = (targetParams: RequestConfigType, globalParams: Req
   // params 参数
   let params: RequestParamsObjType = { ...targetRequestParams.Params }
   params = translateStr(params)
+  // 替换 params 中的 {{paramName}} 占位符
+  const paramsStr = JSON.stringify(params)
+  console.log('[customizeHttp] Params after translateStr:', paramsStr)
+  params = JSON.parse(replaceUrlParams(paramsStr)) as RequestParamsObjType
+  console.log('[customizeHttp] Params after replaceUrlParams:', params)
   // form 类型处理
   let formData: FormData = new FormData()
   // 类型处理
@@ -211,7 +227,13 @@ export const customizeHttp = (targetParams: RequestConfigType, globalParams: Req
   }
 
   try {
-    const url =  (new Function("return `" + `${requestOriginUrl}${requestUrl}`.trim() + "`"))();
+    // 组合完整 URL 并替换其中的 {{paramName}} 占位符
+    const fullUrl = (requestOriginUrl + requestUrl).trim()
+    console.log('[customizeHttp] Full URL before replace:', fullUrl)
+    const processedUrl = replaceUrlParams(fullUrl)
+    console.log('[customizeHttp] Full URL after replace:', processedUrl)
+    const url = (new Function("return `" + processedUrl + "`"))();
+    console.log('[customizeHttp] Final URL:', url)
     return axiosInstance({
         url,
         method: requestHttpType,
@@ -224,3 +246,4 @@ export const customizeHttp = (targetParams: RequestConfigType, globalParams: Req
     window['$message'].error('URL地址格式有误！')
   }
 }
+
