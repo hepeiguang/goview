@@ -1,0 +1,3 @@
+在SqlServer模式下，createTime字段没有按照传入的参数进行填充，而是采用sequlize自动填充的时间
+
+如果这个问题处理不了，则考虑将datetime字段改为varchar类型
