@@ -8,8 +8,30 @@ import {
   RequestParamsObjType
 } from '@/enums/httpEnum'
 import type { RequestGlobalConfigType, RequestConfigType } from '@/store/modules/chartEditStore/chartEditStore.d'
-import { useTokenStore } from '@/store/modules/tokenStore/tokenStore'
-import { replaceUrlParams } from '@/utils/urlParams'
+import { replaceUrlParams, setGlobalParams } from '@/utils/urlParams'
+
+/**
+ * 递归替换对象中所有字符串值的占位符
+ * 支持替换 headers、data、params 中的 {{paramName}} 占位符
+ */
+const replaceObjectParams = (obj: any): any => {
+  if (typeof obj === 'string') {
+    return replaceUrlParams(obj)
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => replaceObjectParams(item))
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const result: any = {}
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        result[key] = replaceObjectParams(obj[key])
+      }
+    }
+    return result
+  }
+  return obj
+}
 
 export const get = <T = any>(url: string, params?: object) => {
   return axiosInstance<T>({
@@ -110,12 +132,12 @@ export const translateStr = (target: string | Record<any, any>) => {
 }
 
 /**
- * * 自定义请求
+ * 自定义请求
  * @param targetParams 当前组件参数
- * @param globalParams 全局参数
+ * @param globalConfig 全局配置
  */
-export const customizeHttp = (targetParams: RequestConfigType, globalParams: RequestGlobalConfigType) => {
-  if (!targetParams || !globalParams) {
+export const customizeHttp = (targetParams: RequestConfigType, globalConfig: RequestGlobalConfigType) => {
+  if (!targetParams || !globalConfig) {
     return
   }
   // 全局
@@ -123,8 +145,15 @@ export const customizeHttp = (targetParams: RequestConfigType, globalParams: Req
     // 全局请求源地址
     requestOriginUrl,
     // 全局请求内容
-    requestParams: globalRequestParams
-  } = globalParams
+    requestParams: globalRequestParams,
+    // 全局自定义参数（用于占位符替换）
+    globalParams: customGlobalParams
+  } = globalConfig
+
+  // 设置全局自定义参数到 urlParams 模块
+  if (customGlobalParams && Object.keys(customGlobalParams).length > 0) {
+    setGlobalParams(customGlobalParams)
+  }
 
   // 目标组件（优先级 > 全局组件）
   const {
@@ -151,14 +180,6 @@ export const customizeHttp = (targetParams: RequestConfigType, globalParams: Req
     return
   }
 
-  // 调试日志
-  console.log('[customizeHttp] Request URL:', requestUrl)
-  console.log('[customizeHttp] Request Params:', targetRequestParams.Params)
-
-  // 获取 Token Store 中的 Authorization
-  const tokenStore = useTokenStore()
-  const authorization = tokenStore.getAuthorization
-
   // 处理头部
   let headers: RequestParamsObjType = {
     ...globalRequestParams.Header,
@@ -172,11 +193,8 @@ export const customizeHttp = (targetParams: RequestConfigType, globalParams: Req
   // params 参数
   let params: RequestParamsObjType = { ...targetRequestParams.Params }
   params = translateStr(params)
-  // 替换 params 中的 {{paramName}} 占位符
-  const paramsStr = JSON.stringify(params)
-  console.log('[customizeHttp] Params after translateStr:', paramsStr)
-  params = JSON.parse(replaceUrlParams(paramsStr)) as RequestParamsObjType
-  console.log('[customizeHttp] Params after replaceUrlParams:', params)
+  // 递归替换 params 中的 {{paramName}} 占位符
+  params = replaceObjectParams(params)
   // form 类型处理
   let formData: FormData = new FormData()
   // 类型处理
@@ -227,13 +245,14 @@ export const customizeHttp = (targetParams: RequestConfigType, globalParams: Req
   }
 
   try {
+    // 递归替换 headers 中的占位符
+    headers = replaceObjectParams(headers)
+    // 递归替换 data 中的占位符
+    data = replaceObjectParams(data)
     // 组合完整 URL 并替换其中的 {{paramName}} 占位符
     const fullUrl = (requestOriginUrl + requestUrl).trim()
-    console.log('[customizeHttp] Full URL before replace:', fullUrl)
     const processedUrl = replaceUrlParams(fullUrl)
-    console.log('[customizeHttp] Full URL after replace:', processedUrl)
     const url = (new Function("return `" + processedUrl + "`"))();
-    console.log('[customizeHttp] Final URL:', url)
     return axiosInstance({
         url,
         method: requestHttpType,
@@ -246,4 +265,3 @@ export const customizeHttp = (targetParams: RequestConfigType, globalParams: Req
     window['$message'].error('URL地址格式有误！')
   }
 }
-

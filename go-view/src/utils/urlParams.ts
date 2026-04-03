@@ -2,6 +2,7 @@
  * URL 参数管理模块
  * 将 URL 参数存储到 sessionStorage，供组件配置请求引用
  * 支持 hash 路由模式下的参数获取
+ * 支持手动设置全局参数
  */
 import { StorageEnum } from '@/enums/storageEnum'
 
@@ -9,6 +10,9 @@ const { GO_URL_PARAMS } = StorageEnum
 
 // URL 参数存储键名
 export const URL_PARAMS_KEY = GO_URL_PARAMS
+
+// 全局自定义参数（可手动设置）
+let globalCustomParams: Record<string, string> = {}
 
 /**
  * 从 URL（支持 hash 路由）提取所有参数
@@ -19,8 +23,6 @@ export const URL_PARAMS_KEY = GO_URL_PARAMS
 function parseUrlParams(): Record<string, string> {
   const params: Record<string, string> = {}
   const href = window.location.href
-
-  console.log('[URL Params] Full URL:', href)
 
   // 尝试从 window.location.search 获取（普通路由）
   let queryString = window.location.search
@@ -37,8 +39,6 @@ function parseUrlParams(): Record<string, string> {
       }
     }
   }
-
-  console.log('[URL Params] Query string:', queryString)
 
   if (queryString) {
     const urlParams = new URLSearchParams(queryString)
@@ -59,16 +59,10 @@ export function extractAndStoreUrlParams(): Record<string, string> {
   try {
     // 解析 URL 参数（支持 hash 路由）
     const parsedParams = parseUrlParams()
-
     Object.assign(params, parsedParams)
-
-    console.log('[URL Params] Extracted params:', params)
 
     if (Object.keys(params).length > 0) {
       sessionStorage.setItem(URL_PARAMS_KEY, JSON.stringify(params))
-      console.log('[URL Params] Stored to sessionStorage:', URL_PARAMS_KEY, params)
-    } else {
-      console.log('[URL Params] No params found in URL')
     }
   } catch (error) {
     console.error('[URL Params] Error extracting params:', error)
@@ -78,20 +72,57 @@ export function extractAndStoreUrlParams(): Record<string, string> {
 }
 
 /**
- * 从 sessionStorage 获取存储的 URL 参数
+ * 获取所有可用的全局参数（URL参数 + 自定义参数）
  */
 export function getUrlParams(): Record<string, string> {
   try {
     const stored = sessionStorage.getItem(URL_PARAMS_KEY)
-    if (stored) {
-      const params = JSON.parse(stored)
-      console.log('[URL Params] Retrieved from sessionStorage:', params)
-      return params
-    }
+    const urlParams = stored ? JSON.parse(stored) : {}
+    // 合并 URL 参数和自定义参数，自定义参数优先级更高
+    return { ...urlParams, ...globalCustomParams }
   } catch (error) {
     console.error('[URL Params] Error reading from sessionStorage:', error)
   }
-  return {}
+  return { ...globalCustomParams }
+}
+
+/**
+ * 设置全局自定义参数
+ * 这些参数会与 URL 参数合并，优先级高于 URL 参数
+ * @param params 参数对象
+ */
+export function setGlobalParams(params: Record<string, string>): void {
+  globalCustomParams = { ...globalCustomParams, ...params }
+  console.log('[URL Params] Global custom params set:', globalCustomParams)
+}
+
+/**
+ * 设置单个全局参数
+ * @param key 参数名
+ * @param value 参数值
+ */
+export function setGlobalParam(key: string, value: string): void {
+  globalCustomParams[key] = value
+  console.log('[URL Params] Global param set:', key, '=', value)
+}
+
+/**
+ * 获取全局自定义参数
+ */
+export function getGlobalParams(): Record<string, string> {
+  return { ...globalCustomParams }
+}
+
+/**
+ * 清除指定全局自定义参数
+ * @param key 参数名，不传则清除所有
+ */
+export function clearGlobalParams(key?: string): void {
+  if (key) {
+    delete globalCustomParams[key]
+  } else {
+    globalCustomParams = {}
+  }
 }
 
 /**
@@ -106,6 +137,7 @@ export function getUrlParam(key: string): string | undefined {
 /**
  * 替换请求 URL 中的参数占位符
  * 支持格式: {{paramName}} 或 {{paramName:defaultValue}}
+ * 如果参数不存在，用空字符串替换占位符
  * @param url 请求 URL
  * @param params 可选的参数覆盖
  */
@@ -113,23 +145,17 @@ export function replaceUrlParams(
   url: string,
   params?: Record<string, string>
 ): string {
-  // 先尝试从 sessionStorage 获取
-  const urlParams = params || getUrlParams()
+  // 合并：外部参数 > 自定义全局参数 > URL参数
+  const baseParams = getUrlParams()
+  const mergedParams = params ? { ...baseParams, ...params } : baseParams
 
-  console.log('[URL Params] replaceUrlParams input:', { url, urlParams })
-
-  if (Object.keys(urlParams).length === 0) {
-    console.log('[URL Params] No params available for replacement')
-    return url
-  }
-
+  // 替换 {{paramName}} 或 {{paramName:defaultValue}}
   const result = url.replace(/\{\{(\w+)(?::([^}]+))?\}\}/g, (match, key, defaultValue) => {
-    const replacement = urlParams[key] || defaultValue || ''
-    console.log(`[URL Params] Replacing {{${key}}} with:`, replacement)
+    // 优先级：合并参数 > 默认值 > 空字符串
+    const replacement = mergedParams[key] || defaultValue || ''
     return replacement
   })
 
-  console.log('[URL Params] replaceUrlParams output:', result)
   return result
 }
 
@@ -142,10 +168,27 @@ export function hasUrlParams(url: string): boolean {
 }
 
 /**
+ * 获取 URL 中所有占位符的参数名
+ * @param url 请求 URL
+ */
+export function getPlaceholderParams(url: string): string[] {
+  const matches = url.match(/\{\{(\w+)(?::[^}]+)?\}\}/g) || []
+  return matches.map(m => m.replace(/\{\{|\}\}/g, '').split(':')[0])
+}
+
+/**
  * 清除存储的 URL 参数
  */
 export function clearUrlParams(): void {
   sessionStorage.removeItem(URL_PARAMS_KEY)
+}
+
+/**
+ * 清除所有全局参数（包括 URL 参数和自定义参数）
+ */
+export function clearAllParams(): void {
+  clearUrlParams()
+  globalCustomParams = {}
 }
 
 /**
@@ -174,10 +217,13 @@ export function initUrlParams(): Record<string, string> {
 
   // 如果 URL 没有参数，尝试从 sessionStorage 读取（处理刷新场景）
   if (Object.keys(params).length === 0) {
-    const stored = getUrlParams()
-    if (Object.keys(stored).length > 0) {
-      console.log('[URL Params] Using stored params on refresh:', stored)
-      return stored
+    const stored = sessionStorage.getItem(URL_PARAMS_KEY)
+    if (stored) {
+      try {
+        return JSON.parse(stored)
+      } catch {
+        return {}
+      }
     }
   }
 

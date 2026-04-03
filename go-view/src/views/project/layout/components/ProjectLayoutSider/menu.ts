@@ -6,7 +6,7 @@ import { MenuOption, MenuGroupOption } from 'naive-ui'
 import { icon } from '@/plugins'
 
 const { GridIcon, TvOutlineIcon } = icon.ionicons5
-const { StoreIcon, ObjectStorageIcon, DevicesIcon } = icon.carbon
+const { DevicesIcon } = icon.carbon
 export const renderMenuLabel = (option: MenuOption | MenuGroupOption) => {
   return option.label
 }
@@ -45,42 +45,9 @@ export const menuOptionsInit = () => {
               key: PageEnum.BASE_HOME_ITEMS_NAME,
               icon: renderIcon(TvOutlineIcon),
             },
-            {
-              label: () =>
-                h(
-                  RouterLink,
-                  {
-                    to: {
-                      name: PageEnum.BASE_HOME_TEMPLATE_NAME,
-                    },
-                  },
-                  { default: () => t('project.my_template') }
-                ),
-              key: PageEnum.BASE_HOME_TEMPLATE_NAME,
-              icon: renderIcon(ObjectStorageIcon),
-            },
           ],
         },
       ],
-    },
-
-    {
-      key: 'divider-2',
-      type: 'divider',
-    },
-    {
-      label: () =>
-        h(
-          RouterLink,
-          {
-            to: {
-              name: PageEnum.BASE_HOME_TEMPLATE_MARKET_NAME,
-            },
-          },
-          { default: () => t('project.template_market') }
-        ),
-      key: PageEnum.BASE_HOME_TEMPLATE_MARKET_NAME,
-      icon: renderIcon(StoreIcon),
     },
   ])
 }

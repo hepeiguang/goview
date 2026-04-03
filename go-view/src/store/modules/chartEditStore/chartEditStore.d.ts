@@ -213,6 +213,8 @@ export interface RequestGlobalConfigType extends RequestPublicConfigType {
   requestOriginUrl?: string
   // 公共数据池
   requestDataPond: RequestDataPondItemType[]
+  // 全局自定义参数（用于 URL 占位符替换）
+  globalParams?: Record<string, string>
 }
 
 // 单个图表请求配置
