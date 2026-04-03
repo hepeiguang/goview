@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# 构建产物
+dist
+node_modules
+.pnpm-store
+
+# 测试文件
+*.test.js
+*.spec.js
+coverage
+.nyc_output
+
+# 日志
+*.log
+logs
+
+# 环境文件
+.env
+.env.local
+.env.*.local
+
+# Docker 相关（在目标机器构建时不需要）
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# 文档
+*.md
+!README.md
+LICENSE
+
+# 其他
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp

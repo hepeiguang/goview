@@ -1,0 +1,89 @@
+# Docker Compose 生产环境配置
+# 包含完整的 MySQL 数据库服务
+
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: goview-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=goview
+      - MYSQL_USER=goview
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-goview123}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - goview-network
+
+  # 后端服务
+  backend:
+    build:
+      context: ./led
+      dockerfile: Dockerfile
+    container_name: goview-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DB_TYPE=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=goview
+      - DB_USER=goview
+      - DB_PASSWORD=${MYSQL_PASSWORD:-goview123}
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+    volumes:
+      - backend-uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/system/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - goview-network
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./go-view
+      dockerfile: Dockerfile
+    container_name: goview-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - goview-network
+
+volumes:
+  # 数据库持久化
+  mysql-data:
+    driver: local
+  # 上传文件持久化
+  backend-uploads:
+    driver: local
+
+networks:
+  goview-network:
+    driver: bridge

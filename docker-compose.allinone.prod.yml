@@ -1,0 +1,75 @@
+# 前后端一体化 docker-compose（包含 MySQL）
+# 部署单个前端+后端镜像 + MySQL 数据库
+
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: goview-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=goview
+      - MYSQL_USER=goview
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-goview123}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - goview-network
+
+  # 前后端一体化服务
+  goview:
+    build:
+      context: .
+      dockerfile: Dockerfile.allinone
+    container_name: goview-allinone
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DB_TYPE=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=goview
+      - DB_USER=goview
+      - DB_PASSWORD=${MYSQL_PASSWORD:-goview123}
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+    volumes:
+      - goview-uploads:/app/backend/uploads
+      - goview-logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/system/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - goview-network
+
+volumes:
+  mysql-data:
+    driver: local
+  goview-uploads:
+    driver: local
+  goview-logs:
+    driver: local
+
+networks:
+  goview-network:
+    driver: bridge

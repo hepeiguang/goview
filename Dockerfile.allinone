@@ -1,0 +1,82 @@
+# ============ 多阶段构建优化版 ============
+# 优化目标: 最小化镜像体积, 最大化层缓存复用
+
+# -------- 构建阶段 --------
+# 仅安装依赖，不进行代码构建
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# 安装系统依赖
+RUN apk add --no-cache python3 make g++ nginx tini
+
+# 复制后端依赖
+COPY led/package*.json ./backend/
+WORKDIR /app/backend
+RUN npm install --only=production
+
+# 复制前端依赖（包含devDependencies用于构建）
+WORKDIR /app
+COPY go-view/package*.json ./frontend/
+WORKDIR /app/frontend
+RUN npm install
+
+# -------- 运行阶段 --------
+# 包含完整构建环境，进行代码构建
+FROM node:18-alpine AS runner
+
+WORKDIR /app
+
+# 安装运行时工具（nginx, tini）- apk会自动安装依赖库
+RUN apk add --no-cache nginx tini
+
+# ============ 后端 ============
+# 从builder复制已安装的依赖
+COPY --from=builder /app/backend/node_modules ./backend/node_modules
+COPY --from=builder /app/backend/package*.json ./backend/
+
+COPY led/src ./backend/src/
+COPY led/db ./backend/db/
+COPY led/scripts ./backend/scripts/
+COPY led/nodemon.json ./backend/
+COPY led/pm2.json ./backend/
+
+# ============ 前端构建 ============
+# 从builder复制已安装的依赖（包含vite等devDependencies）
+COPY --from=builder /app/frontend/node_modules ./frontend/node_modules
+COPY --from=builder /app/frontend/package*.json ./frontend/
+
+COPY go-view/ ./frontend/
+
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+WORKDIR /app/frontend
+RUN npm run build
+
+# 清理前端构建缓存
+RUN rm -rf node_modules
+
+# 复制前端构建产物
+WORKDIR /app
+RUN mkdir -p frontend && mv /app/frontend/dist ./frontend/
+
+# 创建必要目录
+RUN mkdir -p uploads logs /var/lib/nginx/logs /etc/nginx/http.d
+
+# 复制 nginx 主配置（Alpine使用/etc/nginx/http.d/）
+COPY --from=builder /etc/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY nginx.allinone.conf /etc/nginx/http.d/default.conf
+
+# 设置权限
+RUN chmod -R 755 /app && chmod -R 777 uploads logs
+
+# 暴露端口: 80(前端) 8080(后端)
+EXPOSE 80 8080
+
+# 启动命令
+CMD ["/sbin/tini", "--", "sh", "-c", "\
+  echo 'Starting backend on port 8080...' && \
+  node /app/backend/src/server.js > /app/logs/backend.log 2>&1 & \
+  sleep 2 && \
+  echo 'Starting nginx on port 80...' && \
+  nginx -g 'daemon off;'"]

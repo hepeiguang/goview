@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+
+# Docker
+.dockerignore
+Dockerfile*
+docker-compose*
+
+# 日志和临时文件
+*.log
+*.tmp
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+.vscode
+*.sublime-*
+
+# 文档
+*.md
+LICENSE
+README*
+
+# 测试
+coverage
+*.test.js
+*.spec.js
+__tests__
+
+# 构建产物（前端会重新构建）
+frontend/dist
+backend/dist
+go-view/dist
+
+# 开发依赖（仅构建时需要）
+go-view/node_modules
+led/node_modules
+.npm
+.yarn
+pnpm-lock.yaml
+package-lock.json
+
+# 其他
+.env.local
+.env.*.local
+.env.production
+.env.production.local
