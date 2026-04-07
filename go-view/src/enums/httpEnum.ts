@@ -133,3 +133,39 @@ export enum ContentTypeEnum {
   // form-data  上传
   FORM_DATA = 'multipart/form-data;charset=UTF-8'
 }
+
+// ============ 参数值类型枚举 ============
+
+/**
+ * @description: 参数值类型枚举
+ */
+export enum RequestValueTypeEnum {
+  // 普通文本
+  DEFAULT = 0,
+  // SQL 表达式
+  SQL = 1,
+  // JavaScript 表达式
+  JAVASCRIPT = 2,
+  // JSON 格式
+  JSON = 3
+}
+
+/**
+ * @description: 参数值类型名称映射
+ */
+export const RequestValueTypeNameMap: Record<RequestValueTypeEnum, string> = {
+  [RequestValueTypeEnum.DEFAULT]: '文本',
+  [RequestValueTypeEnum.SQL]: 'SQL',
+  [RequestValueTypeEnum.JAVASCRIPT]: 'JS',
+  [RequestValueTypeEnum.JSON]: 'JSON'
+}
+
+/**
+ * @description: Monaco Editor 语言映射
+ */
+export const MonacoLanguageMap: Record<RequestValueTypeEnum, string> = {
+  [RequestValueTypeEnum.DEFAULT]: 'plaintext',
+  [RequestValueTypeEnum.SQL]: 'sql',
+  [RequestValueTypeEnum.JAVASCRIPT]: 'javascript',
+  [RequestValueTypeEnum.JSON]: 'json'
+}

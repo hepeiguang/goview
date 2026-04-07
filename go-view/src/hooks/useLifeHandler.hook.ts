@@ -164,27 +164,38 @@ export function generateBaseFunc(fnStr: string) {
 function generateFunc(fnStr: string, e: any) {
   try {
     // npmPkgs 便于拷贝 echarts 示例时设置option 的formatter等相关内容
-    // 定义辅助函数 - 使用与导入函数不同的名称避免覆盖
+    // 定义辅助函数 - 将导入的函数作为参数传递
     const helperFunctions = `
-      // 全局参数相关辅助函数（使用别名避免与导入函数冲突）
-      const _setGlobalParam = setGlobalParam;
-      const _setGlobalParams = setGlobalParams;
-      const _getGlobalParams = getGlobalParams;
-      const _clearGlobalParams = clearGlobalParams;
-      const _getUrlParam = getUrlParam;
-      const _getPlaceholderParams = getPlaceholderParams;
-      const _hasUrlParams = hasUrlParams;
+      // 全局参数相关辅助函数
+      const _setGlobalParam = _p.setGlobalParam;
+      const _setGlobalParams = _p.setGlobalParams;
+      const _getGlobalParams = _p.getGlobalParams;
+      const _clearGlobalParams = _p.clearGlobalParams;
+      const _getUrlParam = _p.getUrlParam;
+      const _getPlaceholderParams = _p.getPlaceholderParams;
+      const _hasUrlParams = _p.hasUrlParams;
     `
+
+    // 创建包含辅助函数的对象
+    const helperParams = {
+      setGlobalParam,
+      setGlobalParams,
+      getGlobalParams,
+      clearGlobalParams,
+      getUrlParam,
+      getPlaceholderParams,
+      hasUrlParams
+    }
 
     Function(`
       "use strict";
       return (
-        async function(e, components, node_modules){
+        async function(e, components, node_modules, _p){
           const {${Object.keys(npmPkgs).join()}} = node_modules;
           ${helperFunctions}
           ${fnStr}
         }
-      )`)().bind(e?.component)(e, components, npmPkgs)
+      )`)().bind(e?.component)(e, components, npmPkgs, helperParams)
   } catch (error) {
     console.error(error)
   }

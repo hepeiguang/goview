@@ -21,6 +21,18 @@ const replaceObjectParams = (obj: any): any => {
   if (Array.isArray(obj)) {
     return obj.map(item => replaceObjectParams(item))
   }
+  // 特殊处理 FormData
+  if (obj instanceof FormData) {
+    const newFormData = new FormData()
+    obj.forEach((value, key) => {
+      if (typeof value === 'string') {
+        newFormData.append(key, replaceUrlParams(value))
+      } else {
+        newFormData.append(key, value)
+      }
+    })
+    return newFormData
+  }
   if (obj !== null && typeof obj === 'object') {
     const result: any = {}
     for (const key in obj) {
@@ -207,7 +219,14 @@ export const customizeHttp = (targetParams: RequestConfigType, globalConfig: Req
       headers['Content-Type'] = ContentTypeEnum.JSON
       //json对象也能使用'javasctipt:'来动态拼接参数
       data = translateStr(targetRequestParams.Body['json'])
-      if(typeof data === 'string')  data = JSON.parse(data)
+      if (typeof data === 'string' && data.trim()) {
+        try {
+          data = JSON.parse(data)
+        } catch (e) {
+          console.error('JSON 解析错误:', e)
+          window['$message'].error('JSON 格式错误，请检查输入内容')
+        }
+      }
       // json 赋值给 data
       break
 
@@ -227,13 +246,20 @@ export const customizeHttp = (targetParams: RequestConfigType, globalConfig: Req
     }
 
     case RequestBodyEnum.FORM_DATA: {
-      headers['Content-Type'] = ContentTypeEnum.FORM_DATA
-      const bodyFormUrlencoded = targetRequestParams.Body['form-data']
-      for (const i in bodyFormUrlencoded) {
-        formData.set(i, translateStr(bodyFormUrlencoded[i]))
+      // 注意：不要手动设置 Content-Type，让 axios 自动处理
+      const bodyFormData = targetRequestParams.Body['form-data']
+      for (const i in bodyFormData) {
+        console.log(`FORM_DATA append: ${i} = ${bodyFormData[i]}`)
+        const value = translateStr(bodyFormData[i])
+        formData.append(i, value)
       }
       // FormData 赋值给 data
       data = formData
+      // 打印 FormData 中所有参数
+      console.log('[customizeHttp] FormData entries:')
+      formData.forEach((value, key) => {
+        console.log(`  ${key}: ${value}`)
+      })
       break
     }
   }
@@ -241,7 +267,11 @@ export const customizeHttp = (targetParams: RequestConfigType, globalConfig: Req
   // sql 处理
   if (requestContentType === RequestContentTypeEnum.SQL) {
     headers['Content-Type'] = ContentTypeEnum.JSON
-    data = requestSQLContent
+    const { key, sql } = requestSQLContent
+    // 将 SQL 语句包装在外层 JSON 对象中
+    const sqlKey = key?.trim() || 'sql'
+    data = { [sqlKey]: sql }
+    console.log('[customizeHttp] SQL data:', data)
   }
 
   try {
