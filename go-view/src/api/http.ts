@@ -267,10 +267,18 @@ export const customizeHttp = (targetParams: RequestConfigType, globalConfig: Req
   // sql 处理
   if (requestContentType === RequestContentTypeEnum.SQL) {
     headers['Content-Type'] = ContentTypeEnum.JSON
-    const { key, sql } = requestSQLContent
-    // 将 SQL 语句包装在外层 JSON 对象中
-    const sqlKey = key?.trim() || 'sql'
-    data = { [sqlKey]: sql }
+    const { sql, sqlKey, body } = requestSQLContent
+    // 解析外层 JSON 对象
+    let bodyObj: Record<string, any> = {}
+    try {
+      bodyObj = body ? JSON.parse(body) : {}
+    } catch (e) {
+      console.warn('[customizeHttp] SQL body JSON 解析失败，已忽略:', e)
+    }
+    // 将 SQL 语句注入指定键名
+    const key = sqlKey?.trim() || 'sql'
+    bodyObj[key] = sql
+    data = bodyObj
     console.log('[customizeHttp] SQL data:', data)
   }
 

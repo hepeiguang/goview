@@ -235,10 +235,12 @@ export interface RequestConfigType extends RequestPublicConfigType {
   requestParamsBodyType: RequestBodyEnum
   // SQL 请求对象
   requestSQLContent: {
-    // 外层 JSON 键名
-    key: string
     // SQL 语句
     sql: string
+    // SQL 语句在 body 中对应的键名
+    sqlKey: string
+    // 外层 JSON 对象（JSON 字符串，可包含任意键值对）
+    body: string
   }
 }
 

@@ -112,11 +112,20 @@
         </div>
         <!-- SQL 请求 -->
         <div v-else>
-          <setting-item-box name="键名">
-            <n-text>sql</n-text>
+          <setting-item-box name="SQL 键名">
+            <n-text>{{ requestSQLContent.sqlKey || 'sql' }}</n-text>
           </setting-item-box>
-          <setting-item-box name="键值">
+          <setting-item-box name="SQL 语句">
             <n-code :code="requestSQLContent.sql || ''" language="sql"></n-code>
+          </setting-item-box>
+          <setting-item-box v-if="requestSQLContent.body && requestSQLContent.body !== '{}'">
+            <template #name>
+              <n-space align="center" :size="6" :wrap="false">
+                <span>外层 Body</span>
+                <n-tag size="small" type="info" :bordered="false">额外参数</n-tag>
+              </n-space>
+            </template>
+            <n-code :code="requestSQLContent.body || '{}'" language="json"></n-code>
           </setting-item-box>
         </div>
       </div>

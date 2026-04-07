@@ -74,11 +74,25 @@
       </template>
       <template v-else>
         <n-tag type="warning">需要后台提供专门处理 sql 的接口</n-tag>
-        <setting-item-box name="键名">
-          <n-tag type="primary" :bordered="false" style="width: 40px; font-size: 16px"> sql </n-tag>
+        <setting-item-box name="SQL 键名">
+          <n-input v-model:value="requestSQLContent['sqlKey']" placeholder="SQL语句在body中的键名，默认sql" style="width: 300px" />
         </setting-item-box>
-        <setting-item-box name="键值">
+        <setting-item-box name="SQL 语句">
           <monaco-editor v-model:modelValue="requestSQLContent['sql']" width="600px" height="200px" language="sql" />
+        </setting-item-box>
+        <setting-item-box>
+          <template #name>
+            <n-space align="center" :size="6" :wrap="true">
+              <span>外层 Body</span>
+              <n-tooltip trigger="hover">
+                <template #trigger>
+                  <n-tag size="small" type="info" :bordered="false">可选</n-tag>
+                </template>
+                配置额外的键值对，发送时会与 SQL 键值对合并
+              </n-tooltip>
+            </n-space>
+          </template>
+          <monaco-editor v-model:modelValue="requestSQLContent['body']" width="600px" height="150px" language="json" />
         </setting-item-box>
       </template>
     </div>

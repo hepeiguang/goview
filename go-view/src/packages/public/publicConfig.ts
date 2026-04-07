@@ -28,8 +28,9 @@ export const requestConfig: RequestConfigType = {
   requestContentType: RequestContentTypeEnum.DEFAULT,
   requestParamsBodyType: RequestBodyEnum.NONE,
   requestSQLContent: {
-    key: 'sql',
-    sql: 'select * from  where'
+    sql: 'select * from  where',
+    sqlKey: 'sql',
+    body: '{}'
   },
   requestParams: {
     Body: {
