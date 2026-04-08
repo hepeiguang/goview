@@ -73,26 +73,37 @@ export const useChartDataFetch = (
         clearInterval(fetchInterval)
 
         const fetchFn = async () => {
-          const res = await customizeHttp(toRaw(targetComponent.request), toRaw(chartEditStore.getRequestGlobalConfig))
-          if (res) {
-            try {
-              const filter = targetComponent.filter
-              const { data } = res
-              echartsUpdateHandle(newFunctionHandle(data, res, filter))
-              // 更新回调函数
-              if (updateCallback) {
-                updateCallback(newFunctionHandle(data, res, filter))
+          console.log('[useChartDataFetch] fetchFn CALLED for:', targetComponent.id, targetComponent.chartConfig.title)
+          console.log('[useChartDataFetch] requestParams:', JSON.stringify(targetComponent.request.requestParams))
+          try {
+            const res = await customizeHttp(toRaw(targetComponent.request), toRaw(chartEditStore.getRequestGlobalConfig))
+            if (res) {
+              console.log('[useChartDataFetch] Request SUCCESS:', targetComponent.id)
+              try {
+                const filter = targetComponent.filter
+                const { data } = res
+                echartsUpdateHandle(newFunctionHandle(data, res, filter))
+                // 更新回调函数
+                if (updateCallback) {
+                  updateCallback(newFunctionHandle(data, res, filter))
+                }
+              } catch (error) {
+                console.error('[useChartDataFetch] Data handle error:', error)
               }
-            } catch (error) {
-              console.error(error)
             }
+          } catch (error) {
+            console.error('[useChartDataFetch] Request FAILED:', error)
           }
         }
 
         // 普通初始化与组件交互处理监听
         watch(
           () => targetComponent.request.requestParams,
-          () => {
+          (newVal, oldVal) => {
+            console.log('[useChartDataFetch] WATCH TRIGGERED for:', targetComponent.id)
+            console.log('[useChartDataFetch] New pointer:', newVal)
+            console.log('[useChartDataFetch] Old pointer:', oldVal)
+            console.log('[useChartDataFetch] Same object?:', newVal === oldVal)
             fetchFn()
           },
           {
@@ -117,6 +128,7 @@ export const useChartDataFetch = (
   }
 
   if (isPreview()) {
+    console.log('[useChartDataFetch] isPreview')
     targetComponent.request.requestDataType === RequestDataTypeEnum.Pond
       ? addGlobalDataInterface(targetComponent, useChartEditStore, (newData: any) => {
           echartsUpdateHandle(newData)

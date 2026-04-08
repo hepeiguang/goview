@@ -1,6 +1,7 @@
 import { CreateComponentType, CreateComponentGroupType } from '@/packages/index.d'
 import { EventLife } from '@/enums/eventEnum'
 import * as echarts from 'echarts'
+import { useChartEditStore } from '@/store/modules/chartEditStore/chartEditStore'
 import {
   setGlobalParam,
   setGlobalParams,
@@ -42,26 +43,85 @@ export function getAllComponentConfigs(): { [K in string]?: CreateComponentType 
 }
 
 /**
- * 触发组件重新请求（通过修改 requestParams）
+ * 从 store 中查找组件（获取 Pinia 响应式代理对象）
+ */
+function findComponentInStore(componentId: string): CreateComponentType | undefined {
+  try {
+    const chartEditStore = useChartEditStore()
+    const list = chartEditStore.getComponentList
+    console.log('[findComponentInStore] Store found, list length:', list?.length)
+    for (const item of list) {
+      if (item.id === componentId && !item.isGroup) {
+        console.log('[findComponentInStore] Found in store:', componentId)
+        return item as CreateComponentType
+      }
+      if (item.isGroup) {
+        const group = item as CreateComponentGroupType
+        for (const child of group.groupList) {
+          if (child.id === componentId) {
+            console.log('[findComponentInStore] Found in group:', componentId)
+            return child as CreateComponentType
+          }
+        }
+      }
+    }
+    console.log('[findComponentInStore] NOT found in store:', componentId)
+  } catch (e) {
+    console.error('[findComponentInStore] Error:', e)
+  }
+  return undefined
+}
+// 防抖记录（避免短时间内多次触发）
+const triggerDebounceMap = new Map<string, number>()
+
+/**
+ * 触发组件重新请求（防抖版）
  * @param componentId 组件ID
  * @param params 要修改的参数 { key: value }
  */
 export function triggerComponentRequest(componentId: string, params?: Record<string, any>) {
-  const config = componentConfigs[componentId]
+  // 防抖：100ms 内只触发第一次
+  const now = Date.now()
+  const lastTrigger = triggerDebounceMap.get(componentId)
+  if (lastTrigger && now - lastTrigger < 100) {
+    console.log('[triggerComponentRequest] Debounced:', componentId)
+    return false
+  }
+  triggerDebounceMap.set(componentId, now)
+
+  console.log('[triggerComponentRequest] === START ===', componentId, params)
+
+  // 从 store 获取响应式组件
+  const config = findComponentInStore(componentId)
   if (!config) {
-    console.warn(`[triggerComponentRequest] Component not found: ${componentId}`)
+    console.error(`[triggerComponentRequest] Component not found in store: ${componentId}`)
     return false
   }
 
-  // 如果提供了参数，先修改
-  if (params) {
-    Object.keys(params).forEach(key => {
-      config.request.requestParams.Params[key] = params[key]
-    })
-  } else {
-    // 触发 watch：给一个临时值再恢复，强制触发 watch
-    config.request.requestParams.Params['_trigger'] = Date.now()
-  }
+  console.log('[triggerComponentRequest] config pointer:', config)
+  console.log('[triggerComponentRequest] Before Params:', JSON.stringify(config.request?.requestParams?.Params))
+
+  // 替换整个 requestParams 对象
+  const newRequestParams = params
+    ? {
+        ...config.request.requestParams,
+        Params: {
+          ...config.request.requestParams.Params,
+          ...params
+        }
+      }
+    : {
+        ...config.request.requestParams,
+        Params: {
+          ...config.request.requestParams.Params,
+          _trigger: String(Date.now())
+        }
+      }
+
+  config.request.requestParams = newRequestParams
+
+  console.log('[triggerComponentRequest] After Params:', JSON.stringify(config.request.requestParams.Params))
+  console.log('[triggerComponentRequest] === END ===')
 
   return true
 }
@@ -108,9 +168,19 @@ export function getAllGlobalParams(): Record<string, string> {
 export const useLifeHandler = (chartConfig: CreateComponentType | CreateComponentGroupType) => {
   if (!chartConfig.events) return {}
 
-  // 注册当前组件配置
+  // 注册当前组件配置 - 确保注册的是 store 中的响应式对象
   if (!chartConfig.isGroup) {
-    registerComponentConfig(chartConfig.id, chartConfig as CreateComponentType)
+    // 先尝试从 store 获取，确保 componentConfigs 存的是响应式引用
+    const storeConfig = findComponentInStore(chartConfig.id)
+    if (storeConfig) {
+      // store 中的对象，componentConfigs 直接复用同一个引用
+      componentConfigs[chartConfig.id] = storeConfig
+      console.log('[useLifeHandler] Registered from store:', chartConfig.id)
+    } else {
+      // 组件还未加入 store（预览时可能如此），使用传入的 chartConfig
+      registerComponentConfig(chartConfig.id, chartConfig as CreateComponentType)
+      console.log('[useLifeHandler] Registered from chartConfig:', chartConfig.id)
+    }
   }
 
   // 处理基础事件
@@ -140,6 +210,24 @@ export const useLifeHandler = (chartConfig: CreateComponentType | CreateComponen
   return { ...baseEvent, ...lifeEvents }
 }
 
+// 基础事件和高级事件共享的辅助函数集合
+const helperFunctionsObj = {
+  triggerComponentRequest,
+  getComponentData,
+  setComponentData,
+  getComponentChart,
+  getAllComponentConfigs,
+  getComponentConfig,
+  registerComponentConfig,
+  setGlobalParam,
+  setGlobalParams,
+  getGlobalParams,
+  clearGlobalParams,
+  getUrlParam,
+  getPlaceholderParams,
+  hasUrlParams
+}
+
 /**
  * 生成基础函数
  * @param fnStr 用户方法体代码
@@ -147,12 +235,14 @@ export const useLifeHandler = (chartConfig: CreateComponentType | CreateComponen
  */
 export function generateBaseFunc(fnStr: string) {
   try {
+    // 将辅助函数名作为参数注入，使脚本中可以直接调用
+    const helperNames = Object.keys(helperFunctionsObj).join(', ')
     return new Function(`
       return (
-        async function(components, mouseEvent){
+        async function(components, mouseEvent, { ${helperNames} }){
           ${fnStr}
         }
-      )`)().bind(undefined, components)
+      )`)().bind(undefined, components, undefined, helperFunctionsObj)
   } catch (error) {
     console.error(error)
   }
@@ -164,27 +254,13 @@ export function generateBaseFunc(fnStr: string) {
 function generateFunc(fnStr: string, e: any) {
   try {
     // npmPkgs 便于拷贝 echarts 示例时设置option 的formatter等相关内容
-    // 定义辅助函数 - 将导入的函数作为参数传递
-    const helperFunctions = `
-      // 全局参数相关辅助函数
-      const _setGlobalParam = _p.setGlobalParam;
-      const _setGlobalParams = _p.setGlobalParams;
-      const _getGlobalParams = _p.getGlobalParams;
-      const _clearGlobalParams = _p.clearGlobalParams;
-      const _getUrlParam = _p.getUrlParam;
-      const _getPlaceholderParams = _p.getPlaceholderParams;
-      const _hasUrlParams = _p.hasUrlParams;
-    `
+    // 定义辅助函数 - 将导入的函数作为参数传递，解构所有辅助函数
+    const helperNames = Object.keys(helperFunctionsObj)
+    const helperFunctions = helperNames.map(name => `const ${name} = _p.${name};`).join('\n      ')
 
     // 创建包含辅助函数的对象
     const helperParams = {
-      setGlobalParam,
-      setGlobalParams,
-      getGlobalParams,
-      clearGlobalParams,
-      getUrlParam,
-      getPlaceholderParams,
-      hasUrlParams
+      ...helperFunctionsObj
     }
 
     Function(`

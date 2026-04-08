@@ -37,8 +37,23 @@ import {
   EditCanvasConfigType
 } from './chartEditStore.d'
 
-const chartHistoryStore = useChartHistoryStore()
-const settingStore = useSettingStore()
+// 延迟获取 store（避免模块加载时 Pinia 未就绪）
+let _chartHistoryStore: ReturnType<typeof useChartHistoryStore> | null = null
+let _settingStore: ReturnType<typeof useSettingStore> | null = null
+
+const getChartHistoryStore = () => {
+  if (!_chartHistoryStore) {
+    _chartHistoryStore = useChartHistoryStore()
+  }
+  return _chartHistoryStore
+}
+
+const getSettingStore = () => {
+  if (!_settingStore) {
+    _settingStore = useSettingStore()
+  }
+  return _settingStore
+}
 
 // 编辑区域内容
 export const useChartEditStore = defineStore({
@@ -342,7 +357,7 @@ export const useChartEditStore = defineStore({
         return
       }
       if (isHistory) {
-        chartHistoryStore.createAddHistory([componentInstance])
+        getChartHistoryStore().createAddHistory([componentInstance])
       }
       if (isHead) {
         this.componentList.unshift(componentInstance)
@@ -366,7 +381,7 @@ export const useChartEditStore = defineStore({
             this.componentList.splice(index, 1)
           }
         })
-        isHistory && chartHistoryStore.createDeleteHistory(history)
+        isHistory && getChartHistoryStore().createDeleteHistory(history)
         loadingFinish()
         return
       } catch (value) {
@@ -393,7 +408,7 @@ export const useChartEditStore = defineStore({
     },
     // * 移动组件
     moveComponentList(item: Array<CreateComponentType | CreateComponentGroupType>) {
-      chartHistoryStore.createMoveHistory(item)
+      getChartHistoryStore().createMoveHistory(item)
     },
     // * 更新组件列表某一项的值
     updateComponentList(index: number, newData: CreateComponentType | CreateComponentGroupType) {
@@ -438,7 +453,7 @@ export const useChartEditStore = defineStore({
 
           // 历史记录
           if (isHistory) {
-            chartHistoryStore.createLayerHistory(
+            getChartHistoryStore().createLayerHistory(
               [setIndex(targetData, index)],
               isEnd ? HistoryActionTypeEnum.BOTTOM : HistoryActionTypeEnum.TOP
             )
@@ -489,7 +504,7 @@ export const useChartEditStore = defineStore({
 
           // 历史记录
           if (isHistory) {
-            chartHistoryStore.createLayerHistory(
+            getChartHistoryStore().createLayerHistory(
               [targetItem],
               isDown ? HistoryActionTypeEnum.DOWN : HistoryActionTypeEnum.UP
             )
@@ -714,7 +729,7 @@ export const useChartEditStore = defineStore({
     setBack() {
       try {
         loadingStart()
-        const targetData = chartHistoryStore.backAction()
+        const targetData = getChartHistoryStore().backAction()
         if (!targetData) {
           loadingFinish()
           return
@@ -729,7 +744,7 @@ export const useChartEditStore = defineStore({
     setForward() {
       try {
         loadingStart()
-        const targetData = chartHistoryStore.forwardAction()
+        const targetData = getChartHistoryStore().forwardAction()
         if (!targetData) {
           loadingFinish()
           return
@@ -745,7 +760,7 @@ export const useChartEditStore = defineStore({
       const index = this.fetchTargetIndex()
       if (index === -1) return
       const attr = this.getComponentList[index].attr
-      const distance = settingStore.getChartMoveDistance
+      const distance = getSettingStore().getChartMoveDistance
       switch (keyboardValue) {
         case MenuEnum.ARROW_UP:
           attr.y -= distance
@@ -825,7 +840,7 @@ export const useChartEditStore = defineStore({
         })
 
         // 修改原数据之前，先记录
-        if (isHistory) chartHistoryStore.createGroupHistory(historyList)
+        if (isHistory) getChartHistoryStore().createGroupHistory(historyList)
 
         // 设置子组件的位置
         targetList.forEach((item: CreateComponentType) => {
@@ -863,7 +878,7 @@ export const useChartEditStore = defineStore({
           if (!targetGroup.isGroup) return
 
           // 记录数据
-          if (isHistory) chartHistoryStore.createUnGroupHistory(cloneDeep([targetGroup]))
+          if (isHistory) getChartHistoryStore().createUnGroupHistory(cloneDeep([targetGroup]))
 
           // 分离组件并还原位置属性
           targetGroup.groupList.forEach(item => {
@@ -911,8 +926,8 @@ export const useChartEditStore = defineStore({
           // 历史记录
           if (isHistory) {
             status
-              ? chartHistoryStore.createLockHistory([targetItem])
-              : chartHistoryStore.createUnLockHistory([targetItem])
+              ? getChartHistoryStore().createLockHistory([targetItem])
+              : getChartHistoryStore().createUnLockHistory([targetItem])
           }
           this.updateComponentList(index, targetItem)
           // 锁定添加失焦效果
@@ -944,8 +959,8 @@ export const useChartEditStore = defineStore({
           // 历史记录
           if (isHistory) {
             status
-              ? chartHistoryStore.createHideHistory([targetItem])
-              : chartHistoryStore.createShowHistory([targetItem])
+              ? getChartHistoryStore().createHideHistory([targetItem])
+              : getChartHistoryStore().createShowHistory([targetItem])
           }
           this.updateComponentList(index, targetItem)
           loadingFinish()
