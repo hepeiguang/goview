@@ -77,9 +77,16 @@ const triggerDebounceMap = new Map<string, number>()
 /**
  * 触发组件重新请求（防抖版）
  * @param componentId 组件ID
- * @param params 要修改的参数 { key: value }
+ * @param params 要修改的 Params 参数 { key: value }
+ * @param body 要修改的 Body 参数（用于 form-data/x-www-form-urlencoded/json 等）
+ * @param header 要修改的 Header 参数
  */
-export function triggerComponentRequest(componentId: string, params?: Record<string, any>) {
+export function triggerComponentRequest(
+  componentId: string,
+  params?: Record<string, any>,
+  body?: Record<string, any>,
+  header?: Record<string, any>
+) {
   // 防抖：100ms 内只触发第一次
   const now = Date.now()
   const lastTrigger = triggerDebounceMap.get(componentId)
@@ -89,7 +96,10 @@ export function triggerComponentRequest(componentId: string, params?: Record<str
   }
   triggerDebounceMap.set(componentId, now)
 
-  console.log('[triggerComponentRequest] === START ===', componentId, params)
+  console.log('[triggerComponentRequest] === START ===', componentId)
+  console.log('[triggerComponentRequest] params:', params)
+  console.log('[triggerComponentRequest] body:', body)
+  console.log('[triggerComponentRequest] header:', header)
 
   // 从 store 获取响应式组件
   const config = findComponentInStore(componentId)
@@ -101,22 +111,59 @@ export function triggerComponentRequest(componentId: string, params?: Record<str
   console.log('[triggerComponentRequest] config pointer:', config)
   console.log('[triggerComponentRequest] Before Params:', JSON.stringify(config.request?.requestParams?.Params))
 
-  // 替换整个 requestParams 对象
-  const newRequestParams = params
-    ? {
-        ...config.request.requestParams,
-        Params: {
-          ...config.request.requestParams.Params,
-          ...params
+  // 构建新的 requestParams
+  const newRequestParams: any = {
+    ...config.request.requestParams,
+    Params: {
+      ...config.request.requestParams.Params,
+      _trigger: String(Date.now())
+    }
+  }
+
+  // 合并 params
+  if (params) {
+    newRequestParams.Params = {
+      ...newRequestParams.Params,
+      ...params
+    }
+  }
+
+  // 合并 header
+  if (header) {
+    newRequestParams.Header = {
+      ...config.request.requestParams.Header,
+      ...header
+    }
+  }
+
+  // 合并 body（form-data 或 x-www-form-urlencoded）
+  if (body) {
+    const currentBody = config.request.requestParams.Body
+    // 尝试合并 form-data 和 x-www-form-urlencoded
+    if (currentBody['form-data']) {
+      newRequestParams.Body = {
+        ...currentBody,
+        'form-data': {
+          ...currentBody['form-data'],
+          ...body
         }
       }
-    : {
-        ...config.request.requestParams,
-        Params: {
-          ...config.request.requestParams.Params,
-          _trigger: String(Date.now())
+    } else if (currentBody['x-www-form-urlencoded']) {
+      newRequestParams.Body = {
+        ...currentBody,
+        'x-www-form-urlencoded': {
+          ...currentBody['x-www-form-urlencoded'],
+          ...body
         }
       }
+    } else {
+      // 对于 json 或其他类型，直接替换
+      newRequestParams.Body = {
+        ...currentBody,
+        ...body
+      }
+    }
+  }
 
   config.request.requestParams = newRequestParams
 

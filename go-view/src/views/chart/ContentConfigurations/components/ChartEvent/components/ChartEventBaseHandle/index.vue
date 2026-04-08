@@ -126,8 +126,11 @@
                   <!-- 辅助函数 -->
                   <n-collapse-item title="辅助函数" :name="4">
                     <n-space vertical :size="[4, 0]">
-                      <n-text depth="3" style="font-weight: 500">triggerComponentRequest(id, params)</n-text>
-                      <n-text depth="3" style="margin-left: 8px">触发指定组件重新请求</n-text>
+                      <n-text depth="3" style="font-weight: 500">triggerComponentRequest(id, params, body, header)</n-text>
+                      <n-text depth="3" style="margin-left: 8px">触发组件重新请求</n-text>
+                      <n-text depth="3" style="margin-left: 8px">- params: URL查询参数</n-text>
+                      <n-text depth="3" style="margin-left: 8px">- body: 请求体参数(form-data/json)</n-text>
+                      <n-text depth="3" style="margin-left: 8px">- header: 请求头参数</n-text>
                       <n-text depth="3" style="font-weight: 500; margin-top: 8px">getComponentData(id)</n-text>
                       <n-text depth="3" style="margin-left: 8px">获取组件配置数据 (option)</n-text>
                       <n-text depth="3" style="font-weight: 500; margin-top: 8px">setComponentData(id, data)</n-text>
@@ -209,108 +212,128 @@ const EventTypeName: Record<string, string> = {
   [BaseEvent.ON_MOUSE_LEAVE]: '鼠标移出'
 }
 
-// 示例代码 - 使用普通字符串避免模板解析问题
-const exampleCode1 = `// 获取指定组件实例
+const exampleCode1 = `// 示例: 获取指定组件实例
+// components: { componentId: VueInstance }
 const instance = components['组件ID'];
+const config = instance.value; // 组件配置
+const option = config.option; // 图表数据
+const chart = instance.chart; // ECharts 实例`
 
-// 访问组件配置
-const config = instance.value;
+const exampleCode2 = `// 示例: 点击柱状图触发饼图刷新
+// 触发组件重新请求（params/body/header 都可选）
+// triggerComponentRequest(id, params, body, header)
+triggerComponentRequest('饼图组件ID', {
+  category: 'value1',
+  page: 1
+}, {
+  database: 'mydb'
+}, {
+  Authorization: 'Bearer xxx'
+});`
 
-// 获取 option 数据
-const option = config.option;
+const exampleCode3 = `// 示例: 仅修改 Params 参数
+triggerComponentRequest('目标组件ID', {
+  id: '123',
+  type: 'category'
+});
+
+// 示例: 仅修改 Body 参数
+triggerComponentRequest('目标组件ID', null, {
+  sql: 'SELECT * FROM users',
+  timeout: 30
+});
+
+// 示例: 同时修改 Params 和 Header
+triggerComponentRequest('目标组件ID', {
+  region: 'beijing'
+}, null, {
+  token: 'Bearer xxx'
+});`
+
+const exampleCode4 = `// 示例: 获取数据处理后更新视图
+// 获取其他组件的数据
+const otherData = getComponentData('其他组件ID');
 
 // 获取 ECharts 实例
-const chart = instance.chart;`
+const chart = getComponentChart('目标组件ID');
 
-const exampleCode2 = `// 点击柱状图某柱子，获取数据并触发饼图刷新
-async click(mouseEvent, components) {
-  // 获取当前 ECharts 实例
-  const myChart = this.chart;
-  const option = myChart?.getOption();
+// 修改图表配置并更新
+const newOption = {
+  ...chart.getOption(),
+  series: [{ data: otherData?.dataset?.source }]
+};
+chart.setOption(newOption);`
 
-  // 获取点击的系列数据
-  const seriesData = option?.series?.[0]?.data;
-  const clickedValue = seriesData?.[0];
+const exampleCode5 = `// 示例: URL参数占位符使用
+// URL: /api/data?region=__region__&type=__type__
+// 配置 Params: { region: 'beijing', type: '1' }
+// 点击时动态修改参数触发刷新
+triggerComponentRequest('目标组件ID', {
+  region: 'shanghai',
+  type: '2'
+});`
 
-  // 触发饼图组件重新请求
-  if (clickedValue) {
-    triggerComponentRequest('饼图组件ID', {
-      category: clickedValue.name,
-      value: clickedValue.value
-    });
+const exampleCode6 = `// 示例: 遍历所有组件触发批量更新
+for (const id in components) {
+  const comp = components[id];
+  const config = comp?.value;
+
+  // 刷新所有 ECharts 组件
+  if (config?.chartConfig?.chartFrame === 'echarts') {
+    comp.chart?.resize();
+  }
+
+  // 或批量设置请求参数
+  if (config?.request?.requestUrl?.includes('/api')) {
+    triggerComponentRequest(id, { refresh: Date.now() });
   }
 }`
 
-const exampleCode3 = `// 直接修改目标组件的 requestParams 触发刷新
-async click(mouseEvent, components) {
-  // 通过组件ID获取目标组件
-  const targetComp = components['目标组件ID'];
+// 默认示例代码
+const defaultEventCode = `// triggerComponentRequest(id, params, body, header)
+// 触发组件重新请求
+// 参数说明:
+//   - params: URL查询参数 { key: value }
+//   - body: 请求体参数 { key: value }
+//   - header: 请求头参数 { key: value }
 
-  // 修改 Params 参数（自动触发 watch 重新请求）
-  targetComp.value.request.requestParams.Params.id = 'newId';
-  targetComp.value.request.requestParams.Params.type = 'category';
+// 示例: 触发其他组件重新请求
+triggerComponentRequest('组件ID', {
+  category: 'value1'
+});
 
-  // 或者修改 Header
-  targetComp.value.request.requestParams.Header.token = 'Bearer xxx';
-}`
+// 示例: 获取组件数据
+const data = getComponentData('组件ID');
 
-const exampleCode4 = `// 获取其他组件数据，处理后更新当前组件
-async click(mouseEvent, components) {
-  // 获取其他组件的数据
-  const otherData = getComponentData('其他组件ID');
-  const otherOption = otherData?.option;
+// 示例: 获取 ECharts 实例
+const chart = getComponentChart('组件ID');
 
-  // 获取 ECharts 实例
-  const chart = getComponentChart('目标组件ID');
-
-  // 修改图表配置并更新
-  const newOption = {
-    ...chart.getOption(),
-    series: [{ data: otherOption?.dataset?.source }]
-  };
-  chart.setOption(newOption);
-}`
-
-const exampleCode5 = `// URL参数占位符使用 (使用 __param__ 代替双花括号)
-// URL: ?region=beijing&type=1
-// 组件配置中设置 Params: { region: "__param__region__" }
-// 然后通过修改触发请求
-
-async click(mouseEvent, components) {
-  const targetComp = components['目标组件ID'];
-
-  // 修改占位符对应的参数值
-  targetComp.value.request.requestParams.Params.region = 'shanghai';
-  targetComp.value.request.requestParams.Params.type = '2';
-  // 参数会自动替换 URL 中的占位符
-}`
-
-const exampleCode6 = `// 遍历所有组件并触发批量更新
-async click(mouseEvent, components) {
-  // 遍历所有组件
-  for (const id in components) {
-    const comp = components[id];
-    const config = comp?.value;
-
-    // 根据组件类型或配置做不同处理
-    if (config?.chartConfig?.chartFrame === 'echarts') {
-      // 刷新所有 ECharts 组件
-      comp.chart?.resize();
-    }
-
-    // 或者批量设置参数
-    if (config?.request?.requestUrl?.includes('/api/data')) {
-      config.request.requestParams.Params.refresh = Date.now();
-    }
-  }
-}`
+// 示例: 设置组件数据
+setComponentData('组件ID', newData);
+`
 
 // 受控弹窗
 const showModal = ref(false)
 // 编辑区域控制
 const editTab = ref(BaseEvent.ON_CLICK)
 // events 函数模板
-let baseEvent = ref({ ...targetData.value.events.baseEvent })
+const baseEvent = ref<Record<string, string>>({})
+
+// 初始化时设置默认示例代码
+const initBaseEvent = () => {
+  const existing = targetData.value.events.baseEvent || {}
+  baseEvent.value = {}
+  // 获取 BaseEvent 枚举的所有事件名称
+  const eventNames = Object.keys(BaseEvent).filter(k => !isNaN(Number(k)))
+  for (const key of eventNames) {
+    const eventName = BaseEvent[key as keyof typeof BaseEvent]
+    // 如果已有代码则使用，否则使用默认示例
+    baseEvent.value[eventName] = existing[eventName] || defaultEventCode
+  }
+}
+
+// 初始化
+initBaseEvent()
 // 事件错误标识
 const errorFlag = ref(false)
 
