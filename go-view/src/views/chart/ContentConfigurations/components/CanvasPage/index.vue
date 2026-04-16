@@ -285,7 +285,7 @@ const customRequest = (options: UploadCustomRequestOptions) => {
       })
       let uploadParams = new FormData()
       uploadParams.append('object', newNameFile)
-      window['$message'].warn('该上传接口与项目预览图为同一个，请自行在后端新增一个上传背景图接口')
+      // window['$message'].warn('该上传接口与项目预览图为同一个，请自行在后端新增一个上传背景图接口')
       const uploadRes = await uploadFile(uploadParams)
 
       if (uploadRes && uploadRes.code === ResultEnum.SUCCESS) {
