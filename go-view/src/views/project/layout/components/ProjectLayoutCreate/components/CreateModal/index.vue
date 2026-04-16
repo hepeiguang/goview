@@ -37,13 +37,12 @@
 <script lang="ts" setup>
 import { ref, watch, shallowRef } from 'vue'
 import { icon } from '@/plugins'
-import { PageEnum, ChartEnum } from '@/enums/pageEnum'
+import { ChartEnum } from '@/enums/pageEnum'
 import { ResultEnum } from '@/enums/httpEnum'
 import { fetchPathByName, routerTurnByPath, renderLang, getUUID } from '@/utils'
 import { createProjectApi } from '@/api/path'
 
 const { FishIcon, CloseIcon } = icon.ionicons5
-const { StoreIcon, ObjectStorageIcon } = icon.carbon
 const showRef = ref(false)
 
 const emit = defineEmits(['close'])
@@ -51,24 +50,13 @@ const props = defineProps({
   show: Boolean
 })
 
+// 只保留新建项目选项
 const typeList = shallowRef([
   {
     title: renderLang('project.new_project'),
     key: ChartEnum.CHART_HOME_NAME,
     icon: FishIcon,
     disabled: false
-  },
-  {
-    title: renderLang('project.my_template'),
-    key: PageEnum.BASE_HOME_TEMPLATE_NAME,
-    icon: ObjectStorageIcon,
-    disabled: true
-  },
-  {
-    title: renderLang('project.template_market'),
-    key: PageEnum.BASE_HOME_TEMPLATE_MARKET_NAME,
-    icon: StoreIcon,
-    disabled: true
   }
 ])
 

@@ -252,6 +252,21 @@ watch(
 useChartDataFetch(props.chartConfig, useChartEditStore, (newData: any) => {
   dataSetHandle(newData)
 })
+
+// 暴露方法给父组件和全局调用
+defineExpose({
+  backLevel,
+  checkOrMap,
+  getLevelHistory: () => levelHistory.value
+})
+
+// 注册到全局组件实例映射中，供事件系统调用
+import { registerComponentConfig } from '@/hooks/useLifeHandler.hook'
+registerComponentConfig(`${props.chartConfig.id}_methods`, {
+  backLevel,
+  checkOrMap,
+  getLevelHistory: () => levelHistory.value
+} as any)
 </script>
 
 <style scope lang="scss">

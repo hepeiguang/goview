@@ -5,7 +5,9 @@ import { InformationList } from '@/packages/components/Informations/index'
 import { TableList } from '@/packages/components/Tables/index'
 import { PhotoList } from '@/packages/components/Photos/index'
 import { IconList } from '@/packages/components/Icons/index'
-import { PackagesCategoryEnum, PackagesType, ConfigType, FetchComFlagType } from '@/packages/index.d'
+import { PackagesCategoryEnum, PackagesType, ConfigType, FetchComFlagType, CreateComponentType } from '@/packages/index.d'
+import { PublicConfigClass } from '@/packages/public'
+import cloneDeep from 'lodash/cloneDeep'
 
 const configModules: Record<string, { default: string }> = import.meta.glob('./components/**/config.vue', {
   eager: true
@@ -29,12 +31,64 @@ export let packagesList: PackagesType = {
 }
 
 // 组件缓存, 可以大幅度提升组件加载速度
-const componentCacheMap = new Map<string, any>()
-const loadConfig = (packageName: string, categoryName: string, keyName: string) => {
-  const key = packageName + categoryName + keyName
-  if (!componentCacheMap.has(key)) {
-    componentCacheMap.set(key, import(`./components/${packageName}/${categoryName}/${keyName}/config.ts`))
+const componentCacheMap = new Map<string, Promise<any>>()
+
+/**
+ * 默认占位组件配置（当真实组件不存在时使用）
+ */
+const createPlaceholderComponent = (packageName: string, categoryName: string, keyName: string) => {
+  console.warn(`[组件加载警告] 组件不存在: ${packageName}/${categoryName}/${keyName}，使用默认占位组件`)
+  
+  // 创建一个默认的占位组件
+  const placeholderKey = `Placeholder_${packageName}_${categoryName}_${keyName}`
+  
+  class PlaceholderConfig extends PublicConfigClass implements CreateComponentType {
+    public key = placeholderKey
+    public chartConfig = {
+      key: placeholderKey,
+      chartKey: `Chart_${placeholderKey}`,
+      conKey: `Config_${placeholderKey}`,
+      title: `缺失组件: ${keyName}`,
+      category: categoryName,
+      categoryName: categoryName,
+      package: packageName as PackagesCategoryEnum,
+      chartFrame: undefined,
+      image: '',
+      redirectComponent: undefined,
+      dataset: undefined,
+      disabled: false,
+      icon: undefined,
+      configEvents: undefined
+    }
+    public option = {
+      placeholder: true,
+      message: `组件 ${keyName} 不存在，请检查组件文件或项目配置`,
+      dataset: []
+    }
   }
+  
+  return Promise.resolve({ default: PlaceholderConfig })
+}
+
+const loadConfig = async (packageName: string, categoryName: string, keyName: string) => {
+  const key = packageName + categoryName + keyName
+  
+  if (!componentCacheMap.has(key)) {
+    // 动态导入组件，添加异常处理
+    const loadPromise = import(`./components/${packageName}/${categoryName}/${keyName}/config.ts`)
+      .then(module => {
+        console.log(`[组件加载成功] ${packageName}/${categoryName}/${keyName}`)
+        return module
+      })
+      .catch(async (error) => {
+        console.error(`[组件加载失败] ${packageName}/${categoryName}/${keyName}:`, error.message)
+        // 组件不存在时返回默认占位组件
+        return createPlaceholderComponent(packageName, categoryName, keyName)
+      })
+    
+    componentCacheMap.set(key, loadPromise)
+  }
+  
   return componentCacheMap.get(key)
 }
 
@@ -67,6 +121,7 @@ const fetchComponent = (chartName: string, flag: FetchComFlagType) => {
       return module[key]
     }
   }
+  return undefined
 }
 
 /**
@@ -75,7 +130,15 @@ const fetchComponent = (chartName: string, flag: FetchComFlagType) => {
  */
 export const fetchChartComponent = (dropData: ConfigType) => {
   const { key } = dropData
-  return fetchComponent(key, FetchComFlagType.VIEW)?.default
+  const component = fetchComponent(key, FetchComFlagType.VIEW)
+  
+  if (!component) {
+    console.warn(`[组件加载警告] 未找到展示组件: ${key}，使用占位组件`)
+    // 返回占位组件
+    return () => import('./components/Placeholder/index.vue')
+  }
+  
+  return component?.default
 }
 
 /**
@@ -84,7 +147,15 @@ export const fetchChartComponent = (dropData: ConfigType) => {
  */
 export const fetchConfigComponent = (dropData: ConfigType) => {
   const { key } = dropData
-  return fetchComponent(key, FetchComFlagType.CONFIG)?.default
+  const component = fetchComponent(key, FetchComFlagType.CONFIG)
+  
+  if (!component) {
+    console.warn(`[组件加载警告] 未找到配置组件: ${key}`)
+    // 返回空配置
+    return undefined
+  }
+  
+  return component?.default
 }
 
 /**

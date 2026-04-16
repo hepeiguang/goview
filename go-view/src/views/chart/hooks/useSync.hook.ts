@@ -246,7 +246,7 @@ export const useSync = () => {
   // * 数据获取
   const dataSyncFetch = async () => {
     // FIX:重新执行dataSyncFetch需清空chartEditStore.componentList,否则会导致图层重复
-    // 切换语言等操作会导致重新执行 dataSyncFetch,此时pinia中并未清空chartEditStore.componentList，导致图层重复
+    // 切换语言等操作会导致重新执行 dataSyncFetch,此时pinia中并未清空chartEditStore.componentList,导致图层重复
     chartEditStore.componentList = []
     chartEditStore.setEditCanvas(EditCanvasTypeEnum.SAVE_STATUS, SyncEnum.START)
     try {
@@ -254,8 +254,32 @@ export const useSync = () => {
       if (res && res.code === ResultEnum.SUCCESS) {
         if (res.data) {
           updateStoreInfo(res.data)
+            
+          // 处理 content 数据
+          let projectData: any = {}
+          try {
+            projectData = JSONParse(res.data.content || '{}')
+          } catch (error) {
+            console.error('[dataSyncFetch] content 解析失败:', error)
+            projectData = {}
+          }
+            
+          // 判断是否为空项目（新建项目还未保存数据）
+          // 如果 componentList 不存在或为空数组，说明是新建项目
+          if (!projectData.componentList || 
+              (Array.isArray(projectData.componentList) && projectData.componentList.length === 0)) {
+            console.log('[dataSyncFetch] 检测到新建项目，使用默认初始化数据')
+            // 设置项目ID
+            chartEditStore.setProjectInfo(ProjectInfoEnum.PROJECT_ID, fetchRouteParamsLocation())
+            // 设置成功状态
+            setTimeout(() => {
+              chartEditStore.setEditCanvas(EditCanvasTypeEnum.SAVE_STATUS, SyncEnum.SUCCESS)
+            }, 1000)
+            return
+          }
+            
           // 更新全局数据
-          await updateComponent(JSONParse(res.data.content))
+          await updateComponent(projectData)
           return
         }else {
           chartEditStore.setProjectInfo(ProjectInfoEnum.PROJECT_ID, fetchRouteParamsLocation())
@@ -267,8 +291,12 @@ export const useSync = () => {
       }
       chartEditStore.setEditCanvas(EditCanvasTypeEnum.SAVE_STATUS, SyncEnum.FAILURE)
     } catch (error) {
+      console.error('[dataSyncFetch] 数据获取失败:', error)
       chartEditStore.setEditCanvas(EditCanvasTypeEnum.SAVE_STATUS, SyncEnum.FAILURE)
-      httpErrorHandle()
+      // 如果是新建项目（还未保存），不显示错误提示
+      if (fetchRouteParamsLocation()) {
+        httpErrorHandle()
+      }
     }
   }
 
